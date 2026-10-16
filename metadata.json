@@ -1,0 +1,7 @@
+{
+  "name": "ZOODI Collection",
+  "description": "ZOODI Collection - Fashion, lifestyle, and trendy apparel shopping app with catalog, cart, checkout, live order tracking, address manager, and settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
