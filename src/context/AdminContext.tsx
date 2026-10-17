@@ -126,7 +126,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Mode: true = Customer Storefront view (default), false = Admin view
   const [isStoreMode, setIsStoreMode] = useState<boolean>(() => {
     if (checkIsAdminRoute()) return false;
-    return true; // Main storefront is ALWAYS default!
+    try {
+      if (localStorage.getItem('zoodi_mode') === 'admin') return false;
+    } catch {}
+    return true; // Main storefront is default
   });
 
   // Sync hash and location route changes
@@ -134,10 +137,17 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const syncRouteMode = () => {
       if (checkIsAdminRoute()) {
         setIsStoreMode(false);
+        try { localStorage.setItem('zoodi_mode', 'admin'); } catch {}
       } else {
-        setIsStoreMode(true);
-        if (localStorage.getItem('zoodi_mode') === 'admin') {
-          localStorage.setItem('zoodi_mode', 'store');
+        try {
+          const mode = localStorage.getItem('zoodi_mode');
+          if (mode === 'admin') {
+            setIsStoreMode(false);
+          } else {
+            setIsStoreMode(true);
+          }
+        } catch {
+          setIsStoreMode(true);
         }
       }
     };
@@ -150,7 +160,21 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
+  const [adminTab, setAdminTabState] = useState<AdminTab>(() => {
+    try {
+      const saved = localStorage.getItem('zoodi_admin_tab');
+      if (saved) return saved as AdminTab;
+    } catch {}
+    return 'dashboard';
+  });
+
+  const setAdminTab = (tab: AdminTab) => {
+    setAdminTabState(tab);
+    try {
+      localStorage.setItem('zoodi_admin_tab', tab);
+    } catch {}
+  };
+
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
   // Admin Profile State
