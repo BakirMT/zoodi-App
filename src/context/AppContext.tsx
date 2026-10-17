@@ -21,6 +21,15 @@ import {
   INITIAL_COUPONS,
 } from '../data/mockData';
 import { INITIAL_REVIEWS } from '../data/reviewsData';
+import {
+  auth,
+  signInWithGoogle,
+  subscribeCollection,
+  saveDocument,
+  deleteDocument,
+  testFirestoreConnection,
+} from '../lib/firebase';
+import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
 
 interface AppContextType {
   // Navigation
@@ -44,6 +53,7 @@ interface AppContextType {
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => void;
   topUpWallet: (amount: number) => void;
+  signInWithGoogleAuth: () => Promise<void>;
 
   // Products
   products: Product[];
@@ -212,14 +222,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 2800);
   };
 
-  // User & Auth
+  // User & Auth State
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('zoodi_user');
     return saved ? JSON.parse(saved) : INITIAL_USER;
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
-  // Products
+  // Products State
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('zoodi_products');
@@ -249,6 +259,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return [];
   });
+
+  // Test Firebase Firestore Connection on boot
+  useEffect(() => {
+    testFirestoreConnection();
+  }, []);
+
+  // Firebase Realtime Products Subscription
+  useEffect(() => {
+    const unsub = subscribeCollection<Product>('products', (fsProducts) => {
+      if (fsProducts && fsProducts.length > 0) {
+        setProducts(fsProducts);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Firebase Realtime Orders Subscription
+  useEffect(() => {
+    const unsub = subscribeCollection<Order>('orders', (fsOrders) => {
+      if (fsOrders && fsOrders.length > 0) {
+        setOrders(fsOrders);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Firebase Auth State Listener
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        setIsAuthenticated(true);
+        const name = fbUser.displayName || fbUser.email?.split('@')[0] || 'Valued Shopper';
+        const userProf: UserProfile = {
+          name,
+          email: fbUser.email || 'user@zoodi.com',
+          phone: fbUser.phoneNumber || '+91 98765 00000',
+          avatar: fbUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
+          walletBalance: 100,
+        };
+        setUser((prev) => ({ ...prev, ...userProf }));
+        saveDocument('customers', fbUser.uid, {
+          id: fbUser.uid,
+          name,
+          email: fbUser.email || '',
+          phone: fbUser.phoneNumber || '',
+          avatar: userProf.avatar,
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const signInWithGoogleAuth = async () => {
+    try {
+      const fbUser = await signInWithGoogle();
+      if (fbUser) {
+        showToast(`Signed in with Google as ${fbUser.displayName || fbUser.email}!`);
+        navigate('home');
+      }
+    } catch (err: any) {
+      showToast('Google sign-in failed. Please try again.', 'error');
+    }
+  };
 
   useEffect(() => {
     try {
@@ -527,14 +600,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = (emailOrPhone: string, _pass: string, customProfile?: Partial<UserProfile>) => {
     setIsAuthenticated(true);
     let finalDisplayName = customProfile?.name || 'Afneel';
+
+    // Look for existing account in saved customers list to avoid duplicate creation
+    let existingCust: any = null;
+    try {
+      const savedCusts = localStorage.getItem('zoodi_admin_customers');
+      if (savedCusts) {
+        const parsed = JSON.parse(savedCusts);
+        if (Array.isArray(parsed)) {
+          existingCust = parsed.find(
+            (c: any) =>
+              (c.email && emailOrPhone && c.email.toLowerCase() === emailOrPhone.toLowerCase()) ||
+              (c.phone && emailOrPhone && c.phone === emailOrPhone)
+          );
+        }
+      }
+    } catch {}
+
     setUser((prev) => {
       const updated: UserProfile = {
         ...prev,
-        ...customProfile,
-        email: customProfile?.email || (emailOrPhone.includes('@') ? emailOrPhone : prev.email),
-        phone: customProfile?.phone || (!emailOrPhone.includes('@') && emailOrPhone ? emailOrPhone : prev.phone),
-        name: customProfile?.name || prev.name || 'Afneel',
-        avatar: customProfile?.avatar || prev.avatar,
+        name: existingCust?.name || customProfile?.name || prev.name || 'Afneel',
+        email: existingCust?.email || customProfile?.email || (emailOrPhone.includes('@') ? emailOrPhone : prev.email),
+        phone: existingCust?.phone || customProfile?.phone || (!emailOrPhone.includes('@') && emailOrPhone ? emailOrPhone : prev.phone),
+        avatar: existingCust?.avatar || customProfile?.avatar || prev.avatar,
+        walletBalance: existingCust?.walletBalance !== undefined ? existingCust.walletBalance : prev.walletBalance,
       };
       finalDisplayName = updated.name;
       try {
@@ -542,6 +632,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
       return updated;
     });
+
+    // Ensure customer entry exists in admin customer registry without creating duplicates
+    try {
+      const saved = localStorage.getItem('zoodi_admin_customers');
+      const list = saved ? JSON.parse(saved) : [];
+      const cleanEmail = customProfile?.email || (emailOrPhone.includes('@') ? emailOrPhone : '');
+      const cleanPhone = customProfile?.phone || (!emailOrPhone.includes('@') ? emailOrPhone : '');
+      if (
+        !list.some(
+          (c: any) =>
+            (cleanEmail && c.email && c.email.toLowerCase() === cleanEmail.toLowerCase()) ||
+            (cleanPhone && c.phone && c.phone === cleanPhone)
+        )
+      ) {
+        list.unshift({
+          id: `cust_${Date.now()}`,
+          name: finalDisplayName,
+          email: cleanEmail || 'user@zoodi.com',
+          phone: cleanPhone || '+91 98765 00000',
+          avatar: customProfile?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+          joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          totalOrders: 0,
+          totalSpent: 0,
+          walletBalance: 0,
+        });
+        localStorage.setItem('zoodi_admin_customers', JSON.stringify(list));
+      }
+    } catch {}
+
     showToast(`Welcome back, ${finalDisplayName}! Logged in successfully.`);
     navigate('home');
     return true;
@@ -601,11 +720,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Product operations
   const addProduct = (prodData: Omit<Product, 'id'>) => {
+    const productId = `prod_${Date.now()}`;
     const newProduct: Product = {
       ...prodData,
-      id: `prod_${Date.now()}`,
+      id: productId,
     };
     setProducts((prev) => [newProduct, ...prev]);
+    saveDocument('products', productId, newProduct);
     showToast(`Added "${newProduct.name}" to catalog.`);
   };
 
@@ -614,6 +735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (selectedProduct?.id === updated.id) {
       setSelectedProduct(updated);
     }
+    saveDocument('products', updated.id, updated);
     showToast(`Product "${updated.name}" updated.`);
   };
 
@@ -622,6 +744,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) => prev.filter((p) => p.id !== id));
     setCart((prev) => prev.filter((c) => c.productId !== id));
     setWishlistIds((prev) => prev.filter((wId) => wId !== id));
+    deleteDocument('products', id);
     showToast(`Deleted "${target?.name || 'Product'}" from catalog.`, 'info');
   };
 
@@ -905,6 +1028,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setOrders((prev) => [newOrder, ...prev]);
     setActiveOrder(newOrder);
+    saveDocument('orders', orderId, newOrder);
     clearCart();
     // Sync customer and order stats to Admin Customers list
     try {
@@ -1043,6 +1167,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         updateProfile,
         topUpWallet,
+        signInWithGoogleAuth,
         products,
         selectedCategory,
         setSelectedCategory,

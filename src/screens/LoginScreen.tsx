@@ -16,7 +16,7 @@ import {
 import { useApp } from '../context/AppContext';
 
 export const LoginScreen: React.FC = () => {
-  const { navigate, login, showToast } = useApp();
+  const { navigate, login, showToast, signInWithGoogleAuth } = useApp();
 
   // Email / Password Form State
   const [identifier, setIdentifier] = useState(() => {
@@ -293,7 +293,7 @@ export const LoginScreen: React.FC = () => {
           {/* Continue with Google */}
           <button
             type="button"
-            onClick={() => setShowGoogleModal(true)}
+            onClick={signInWithGoogleAuth}
             className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 active:scale-[0.98] text-xs font-bold text-slate-700 dark:text-slate-200 transition-all shadow-xs cursor-pointer group"
           >
             <svg className="w-4 h-4 shrink-0 group-hover:scale-105 transition-transform" viewBox="0 0 24 24">

@@ -7,6 +7,7 @@ import {
   AdminCoupon,
   AdminCategory,
 } from '../types/admin';
+import { subscribeCollection, saveDocument, deleteDocument } from '../lib/firebase';
 
 export interface AdminProfile {
   name: string;
@@ -191,12 +192,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('zoodi_admin_auth') === 'true';
+    const storedLocal = localStorage.getItem('zoodi_admin_auth');
+    if (storedLocal === 'true') return true;
+    const storedSession = sessionStorage.getItem('zoodi_admin_auth');
+    return storedSession === 'true';
   });
 
   const verifyAdminPassword = (enteredPassword: string): boolean => {
     if (enteredPassword.trim() === adminPassword.trim()) {
       setIsAdminAuthenticated(true);
+      localStorage.setItem('zoodi_admin_auth', 'true');
       sessionStorage.setItem('zoodi_admin_auth', 'true');
       return true;
     }
@@ -273,21 +278,48 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('zoodi_categories', JSON.stringify(categories));
   }, [categories]);
 
+  // Subscribe to Firebase Firestore collections for real-time synchronization
+  useEffect(() => {
+    const unsubBanners = subscribeCollection<AdminBanner>('banners', (fsBanners) => {
+      if (fsBanners && fsBanners.length > 0) setBanners(fsBanners);
+    });
+    const unsubCategories = subscribeCollection<AdminCategory>('categories', (fsCats) => {
+      if (fsCats && fsCats.length > 0) setCategories(fsCats);
+    });
+    const unsubCustomers = subscribeCollection<AdminCustomer>('customers', (fsCusts) => {
+      if (fsCusts && fsCusts.length > 0) setCustomers(fsCusts);
+    });
+    const unsubCoupons = subscribeCollection<AdminCoupon>('coupons', (fsCoups) => {
+      if (fsCoups && fsCoups.length > 0) setCoupons(fsCoups);
+    });
+
+    return () => {
+      unsubBanners();
+      unsubCategories();
+      unsubCustomers();
+      unsubCoupons();
+    };
+  }, []);
+
   const addCategory = (catData: Omit<AdminCategory, 'id' | 'count'>) => {
+    const catId = `cat_${Date.now()}`;
     const newCat: AdminCategory = {
       ...catData,
-      id: `cat_${Date.now()}`,
+      id: catId,
       count: 0,
     };
     setCategories((prev) => [...prev, newCat]);
+    saveDocument('categories', catId, newCat);
   };
 
   const updateCategory = (updated: AdminCategory) => {
     setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    saveDocument('categories', updated.id, updated);
   };
 
   const deleteCategory = (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    deleteDocument('categories', id);
   };
 
   // Customers state
@@ -308,18 +340,21 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [customers]);
 
   const addCustomer = (custData: Omit<AdminCustomer, 'id' | 'joinedDate' | 'totalOrders' | 'totalSpent'>) => {
+    const custId = `cust_${Date.now()}`;
     const newCust: AdminCustomer = {
       ...custData,
-      id: `cust_${Date.now()}`,
+      id: custId,
       joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       totalOrders: 0,
       totalSpent: 0,
     };
     setCustomers((prev) => [newCust, ...prev]);
+    saveDocument('customers', custId, newCust);
   };
 
   const deleteCustomer = (id: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== id));
+    deleteDocument('customers', id);
   };
 
   // Coupons state
@@ -340,42 +375,52 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [coupons]);
 
   const addBanner = (bannerData: Omit<AdminBanner, 'id'>) => {
+    const bannerId = `ban_${Date.now()}`;
     const newBanner: AdminBanner = {
       ...bannerData,
-      id: `ban_${Date.now()}`,
+      id: bannerId,
     };
     setBanners((prev) => [newBanner, ...prev]);
+    saveDocument('banners', bannerId, newBanner);
   };
 
   const updateBanner = (updated: AdminBanner) => {
     setBanners((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    saveDocument('banners', updated.id, updated);
   };
 
   const deleteBanner = (id: string) => {
     setBanners((prev) => prev.filter((b) => b.id !== id));
+    deleteDocument('banners', id);
   };
 
   const toggleBannerStatus = (id: string) => {
-    setBanners((prev) =>
-      prev.map((b) =>
+    setBanners((prev) => {
+      const updated = prev.map((b) =>
         b.id === id
-          ? { ...b, status: b.status === 'Active' ? 'Inactive' : 'Active' }
+          ? { ...b, status: (b.status === 'Active' ? 'Inactive' : 'Active') as 'Active' | 'Inactive' }
           : b
-      )
-    );
+      );
+      const target = updated.find((b) => b.id === id);
+      if (target) saveDocument('banners', id, target);
+      return updated;
+    });
   };
 
   const addCoupon = (coupData: Omit<AdminCoupon, 'id' | 'usageCount'>) => {
+    const coupId = `coup_${Date.now()}`;
     const newC: AdminCoupon = {
       ...coupData,
-      id: `coup_${Date.now()}`,
+      id: coupId,
       usageCount: 0,
     };
     setCoupons((prev) => [newC, ...prev]);
+    saveDocument('coupons', coupId, newC);
   };
 
   const deleteCoupon = (id: string) => {
     setCoupons((prev) => prev.filter((c) => c.id !== id));
+    deleteDocument('coupons', id);
   };
 
   const handleSetIsStoreMode = (storeMode: boolean) => {
@@ -394,6 +439,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const logoutAdmin = () => {
     setIsAdminAuthenticated(false);
+    localStorage.removeItem('zoodi_admin_auth');
     sessionStorage.removeItem('zoodi_admin_auth');
     handleSetIsStoreMode(true);
   };

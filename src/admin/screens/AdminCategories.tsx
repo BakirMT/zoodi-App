@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Edit2, Trash2, X, FolderPlus, Sparkles } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, X, FolderPlus, Sparkles, Camera, Upload } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { useApp } from '../../context/AppContext';
 import { AdminCategory } from '../../types/admin';
@@ -242,16 +242,56 @@ export const AdminCategories: React.FC = () => {
                 />
               </div>
 
+              {/* Category Image - Direct Upload or URL/Presets */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
-                  Image URL
+                  Category Photo / Image
                 </label>
+                
+                {/* File Upload Button */}
+                <div className="flex items-center gap-3 mb-2">
+                  {image && (
+                    <img
+                      src={image}
+                      alt="Category preview"
+                      className="w-12 h-12 rounded-xl object-cover ring-2 ring-pink-500/20 shrink-0"
+                    />
+                  )}
+                  <label className="flex-1 inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold cursor-pointer transition-colors border border-slate-200 dark:border-slate-700">
+                    <Camera className="w-4 h-4 text-pink-500" />
+                    <span>Upload Image from Device</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            showToast('Image size must be under 5MB', 'error');
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (ev.target?.result) {
+                              setImage(ev.target.result as string);
+                              showToast('Category photo uploaded from device!');
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <p className="text-[10px] text-slate-400 mb-1">Or paste web image URL or select preset below:</p>
                 <input
-                  type="url"
+                  type="text"
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-pink-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-pink-500 text-xs"
                 />
               </div>
 
