@@ -120,14 +120,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
     const search = window.location.search.toLowerCase();
-    return (
-      path.includes('/admin') ||
-      path.includes('/super-admin') ||
-      path.includes('/superadmin') ||
-      hash.includes('admin') ||
-      hash.includes('super-admin') ||
-      search.includes('admin=true')
-    );
+    return hash.includes('admin') || path.includes('/admin') || search.includes('admin=true');
   };
 
   // Mode: true = Customer Storefront view (default), false = Admin view
@@ -427,8 +420,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsStoreMode(storeMode);
     localStorage.setItem('zoodi_mode', storeMode ? 'store' : 'admin');
     if (!storeMode) {
-      if (!window.location.hash.includes('admin')) {
-        window.location.hash = '#super-admin';
+      if (window.location.hash !== '#admin') {
+        window.location.hash = '#admin';
       }
     } else {
       if (window.location.hash.includes('admin')) {

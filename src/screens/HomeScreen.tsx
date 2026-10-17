@@ -219,7 +219,7 @@ export const HomeScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      window.location.hash = '#super-admin';
+                      window.location.hash = '#admin';
                     }}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#DF1951] text-white font-bold text-xs shadow-md hover:bg-[#BE123C] transition-all cursor-pointer"
                   >
@@ -362,7 +362,7 @@ export const HomeScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      window.location.hash = '#super-admin';
+                      window.location.hash = '#admin';
                     }}
                     className="text-[#DF1951] font-bold hover:underline ml-1"
                   >
@@ -411,7 +411,7 @@ export const HomeScreen: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.hash = '#super-admin';
+                    window.location.hash = '#admin';
                   }}
                   className="px-5 py-2.5 rounded-2xl bg-[#DF1951] text-white text-xs font-bold shadow-md hover:bg-[#BE123C] transition-all cursor-pointer"
                 >
