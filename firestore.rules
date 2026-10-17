@@ -2,47 +2,42 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
+    // Connection test path
+    match /test/{testId} {
+      allow read, write: if true;
     }
 
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Products collection: Anyone can read, signed in / admin can write
+    // Products collection
     match /products/{productId} {
       allow read: if true;
-      allow write: if true; // Allow client & admin operations
+      allow write: if true;
     }
 
-    // Categories collection: Anyone can read, signed in / admin can write
+    // Categories collection
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if true;
     }
 
-    // Banners collection: Anyone can read, signed in / admin can write
+    // Banners collection
     match /banners/{bannerId} {
       allow read: if true;
       allow write: if true;
     }
 
-    // Coupons collection: Anyone can read, signed in / admin can write
+    // Coupons collection
     match /coupons/{couponId} {
       allow read: if true;
       allow write: if true;
     }
 
-    // Orders collection: Anyone can read and write (for customer checkout & admin order management)
+    // Orders collection
     match /orders/{orderId} {
       allow read: if true;
       allow write: if true;
     }
 
-    // Customers collection: Anyone can read and write (for customer registration, profile & admin customer management)
+    // Customers collection
     match /customers/{customerId} {
       allow read: if true;
       allow write: if true;

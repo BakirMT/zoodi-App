@@ -30,15 +30,19 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
-// Connection Test
+// Non-blocking Connection Test with fast timeout
 export async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firebase Firestore connection verified.');
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Connection check timeout')), 3000)
+    );
+    await Promise.race([
+      getDocFromServer(doc(db, 'test', 'connection')),
+      timeoutPromise,
+    ]);
+    console.log('Firebase Firestore backend connection verified.');
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase Firestore client is offline. Checking connection...');
-    }
+    console.warn('Firebase Firestore operating in local/offline mode:', error instanceof Error ? error.message : error);
   }
 }
 
@@ -80,8 +84,8 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Error Handled: ', JSON.stringify(errInfo));
+  return errInfo;
 }
 
 // Google Auth Helper
@@ -95,7 +99,7 @@ export async function signInWithGoogle() {
   }
 }
 
-// Generic Firestore Realtime Subscription
+// Generic Firestore Realtime Subscription (Offline-Safe)
 export function subscribeCollection<T>(
   collectionName: string,
   onData: (data: T[]) => void,
